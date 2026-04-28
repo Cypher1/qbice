@@ -101,5 +101,6 @@ pub use qbice_stable_hash as stable_hash;
 pub use qbice_stable_hash::StableHash;
 pub use qbice_stable_type_id as stable_type_id;
 pub use qbice_stable_type_id::Identifiable;
+#[cfg(feature = "qbice_storage")]
 pub use qbice_storage as storage;
 pub use query::{ExecutionStyle, Query};

@@ -19,6 +19,7 @@ use std::{
 
 use qbice_stable_hash::BuildStableHasher;
 use qbice_stable_type_id::Identifiable;
+#[cfg(feature = "qbice_storage")]
 use qbice_storage::storage_engine::StorageEngine;
 
 /// Configuration trait for customizing engine behavior.
@@ -132,17 +133,21 @@ mod default_config {
 pub use default_config::DefaultConfig;
 
 /// Type alias for a single map in the storage engine.
+#[cfg(feature = "qbice_storage")]
 pub type SingleMap<C, K, V> =
     <<C as Config>::StorageEngine as StorageEngine>::SingleMap<K, V>;
 
 /// Type alias for a dynamic map in the storage engine.
+#[cfg(feature = "qbice_storage")]
 pub type DynamicMap<C, K> =
     <<C as Config>::StorageEngine as StorageEngine>::DynamicMap<K>;
 
 /// Type alias for a key-of-set map in the storage engine.
+#[cfg(feature = "qbice_storage")]
 pub type KeyOfSetMap<C, K, Con> =
     <<C as Config>::StorageEngine as StorageEngine>::KeyOfSetMap<K, Con>;
 
 /// Type alias for a write transaction in the storage engine.
+#[cfg(feature = "qbice_storage")]
 pub type WriteTransaction<C> =
     <<C as Config>::StorageEngine as StorageEngine>::WriteTransaction;

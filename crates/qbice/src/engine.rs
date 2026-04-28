@@ -46,6 +46,7 @@ use qbice_stable_hash::{
     BuildStableHasher, Compact128, StableHash, StableHasher,
 };
 use qbice_stable_type_id::Identifiable;
+#[cfg(feature = "qbice_storage")]
 use qbice_storage::{intern::Interner, storage_engine::StorageEngineFactory};
 
 use crate::{
