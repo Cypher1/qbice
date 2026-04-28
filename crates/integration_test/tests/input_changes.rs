@@ -14,54 +14,51 @@ async fn division_input_change() {
     let tempdir = tempdir().unwrap();
     let division_ex = Arc::new(DivisionExecutor::default());
 
+    let mut engine = create_test_engine(&tempdir).await;
+
+    engine.register_executor(division_ex.clone());
+
+    let engine = Arc::new(engine);
+
     // session 1: initial inputs and query
     {
-        let mut engine = create_test_engine(&tempdir).await;
+        let mut input_session = engine.input_session().await;
 
-        engine.register_executor(division_ex.clone());
-
-        let engine = Arc::new(engine);
-
-        {
-            let mut input_session = engine.input_session().await;
-
-            input_session.set_input(Variable(0), 40).await;
-            input_session.set_input(Variable(1), 4).await;
-        }
-
-        let tracked_engine = engine.clone().tracked().await;
-
-        assert_eq!(
-            tracked_engine
-                .query(&Division::new(Variable(0), Variable(1)))
-                .await,
-            10
-        );
-
-        assert_eq!(division_ex.0.load(std::sync::atomic::Ordering::Relaxed), 1);
-
-        drop(tracked_engine);
-
-        // session 2: change input and re-query
-
-        {
-            let mut input_session = engine.input_session().await;
-            input_session.set_input(Variable(1), 2).await;
-
-            input_session.commit().await;
-        }
-
-        let tracked_engine = engine.tracked().await;
-
-        assert_eq!(
-            tracked_engine
-                .query(&Division::new(Variable(0), Variable(1)))
-                .await,
-            20
-        );
-
-        assert_eq!(division_ex.0.load(std::sync::atomic::Ordering::Relaxed), 2);
+        input_session.set_input(Variable(0), 40).await;
+        input_session.set_input(Variable(1), 4).await;
     }
+
+    let tracked_engine = engine.clone().tracked().await;
+
+    assert_eq!(
+        tracked_engine
+            .query(&Division::new(Variable(0), Variable(1)))
+            .await,
+        10
+    );
+
+    assert_eq!(division_ex.0.load(std::sync::atomic::Ordering::Relaxed), 1);
+
+    drop(tracked_engine);
+
+    // session 2: change input and re-query
+    {
+        let mut input_session = engine.input_session().await;
+        input_session.set_input(Variable(1), 2).await;
+
+        input_session.commit().await;
+    }
+
+    let tracked_engine = engine.tracked().await;
+
+    assert_eq!(
+        tracked_engine
+            .query(&Division::new(Variable(0), Variable(1)))
+            .await,
+        20
+    );
+
+    assert_eq!(division_ex.0.load(std::sync::atomic::Ordering::Relaxed), 2);
 }
 
 #[tokio::test]
