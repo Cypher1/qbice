@@ -42,7 +42,7 @@ tracing-test = "0.2.5"
 crossbeam-utils = "0.8.21"
 bimap = "0.6.3"
 fxhash = "0.2.1"
-rust-rocksdb = { version = "0.46.0" }
+rust-rocksdb = { version = "0.46.0", features = ["lz4"] }
 tempfile = "3"
 futures = "0.3.31"
 rayon = "1.11.0"
