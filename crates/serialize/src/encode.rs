@@ -13,6 +13,8 @@ use std::{
 };
 
 use dashmap::DashMap;
+#[cfg(feature="smallvec")]
+use smallvec::SmallVec;
 
 use crate::{plugin::Plugin, session::Session};
 
@@ -517,6 +519,22 @@ impl<T: Encode, U: Encode> Encode for Result<T, U> {
 // =============================================================================
 
 impl<T: Encode> Encode for Vec<T> {
+    fn encode<E: Encoder + ?Sized>(
+        &self,
+        encoder: &mut E,
+        plugin: &Plugin,
+        session: &mut Session,
+    ) -> io::Result<()> {
+        encoder.emit_usize(self.len())?;
+        for item in self {
+            item.encode(encoder, plugin, session)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature="smallvec")]
+impl<T: Encode, const N: usize> Encode for SmallVec<T, N> {
     fn encode<E: Encoder + ?Sized>(
         &self,
         encoder: &mut E,
