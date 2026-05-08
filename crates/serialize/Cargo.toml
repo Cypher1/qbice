@@ -8,12 +8,15 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-smallvec=[]
+default = ["bitvec", "smallvec"]
+bitvec = ["dep:bitvec"]
+smallvec = ["dep:smallvec"]
 
 [dependencies]
 qbice_serialize_derive = { version = "0.1.0", path = "../serialize_derive" }
 dashmap.workspace = true
-smallvec = { workspace = true, optional = true}
+smallvec = { workspace = true, optional = true }
+bitvec = { workspace = true, optional = true }
 
 [lints]
 workspace = true
