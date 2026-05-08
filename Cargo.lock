@@ -1186,11 +1186,13 @@ dependencies = [
 name = "qbice_stable_hash"
 version = "0.1.5"
 dependencies = [
+ "bitvec",
  "dashmap",
  "flexstr",
  "qbice_serialize",
  "qbice_stable_hash_derive",
  "siphasher",
+ "smallvec",
  "static_assertions",
 ]
 
@@ -1207,15 +1209,18 @@ dependencies = [
 name = "qbice_stable_type_id"
 version = "0.1.5"
 dependencies = [
+ "bitvec",
  "qbice_identifiable_derive",
  "qbice_serialize",
  "qbice_stable_hash",
+ "smallvec",
 ]
 
 [[package]]
 name = "qbice_storage"
 version = "0.6.3"
 dependencies = [
+ "bitvec",
  "bon",
  "crossbeam",
  "crossbeam-channel",
@@ -1232,6 +1237,7 @@ dependencies = [
  "rust-rocksdb",
  "scc",
  "siphasher",
+ "smallvec",
  "tempfile",
  "thread_local",
  "tokio",
