@@ -27,8 +27,6 @@ license = "MIT"
 siphasher = "1.0.1"
 static_assertions = "1.1.0"
 dashmap = { version = "6.1.0", features = ["rayon", "raw-api"] }
-smallvec = "1.15.1"
-bitvec = "1.0.1"
 flexstr = "0.9.1"
 quote = "1.0.42"
 syn = "2.0.111"
@@ -44,7 +42,7 @@ tracing-test = "0.2.5"
 crossbeam-utils = "0.8.21"
 bimap = "0.6.3"
 fxhash = "0.2.1"
-rust-rocksdb = { version = "0.46.0", features = ["lz4"] }
+rust-rocksdb = { version = "0.46.0" }
 tempfile = "3"
 futures = "0.3.31"
 rayon = "1.11.0"

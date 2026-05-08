@@ -18,8 +18,6 @@ default-config = ["rocksdb"]
 rocksdb = ["qbice_storage/rocksdb"]
 fjall = ["qbice_storage/fjall"]
 tracing_resource = ["qbice_storage/tracing_resource"]
-smallvec = ["qbice_serialize/smallvec"]
-bitvec = ["qbice_serialize/bitvec"]
 
 [dependencies]
 qbice_stable_hash = { version = "0.1.5", path = "../stable_hash" }
