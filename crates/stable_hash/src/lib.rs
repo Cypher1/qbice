@@ -36,6 +36,11 @@ extern crate self as qbice_stable_hash;
 pub use qbice_stable_hash_derive::StableHash;
 use siphasher::sip128::Hasher128;
 
+#[cfg(feature = "bitvec")]
+use bitvec::prelude::*;
+#[cfg(feature = "smallvec")]
+use smallvec::{Array, SmallVec};
+
 #[doc(hidden)]
 pub mod __internal {}
 
@@ -100,7 +105,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `u8` value to hash
-    fn write_u8(&mut self, i: u8) { self.write(&[i]); }
+    fn write_u8(&mut self, i: u8) {
+        self.write(&[i]);
+    }
 
     /// Writes a single `i8` value to the hasher.
     ///
@@ -109,7 +116,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `i8` value to hash
-    fn write_i8(&mut self, i: i8) { self.write(&i.to_le_bytes()); }
+    fn write_i8(&mut self, i: i8) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `u16` value to the hasher.
     ///
@@ -118,7 +127,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `u16` value to hash
-    fn write_u16(&mut self, i: u16) { self.write(&i.to_le_bytes()); }
+    fn write_u16(&mut self, i: u16) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `i16` value to the hasher.
     ///
@@ -127,7 +138,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `i16` value to hash
-    fn write_i16(&mut self, i: i16) { self.write(&i.to_le_bytes()); }
+    fn write_i16(&mut self, i: i16) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `u32` value to the hasher.
     ///
@@ -136,7 +149,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `u32` value to hash
-    fn write_u32(&mut self, i: u32) { self.write(&i.to_le_bytes()); }
+    fn write_u32(&mut self, i: u32) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `i32` value to the hasher.
     ///
@@ -145,7 +160,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `i32` value to hash
-    fn write_i32(&mut self, i: i32) { self.write(&i.to_le_bytes()); }
+    fn write_i32(&mut self, i: i32) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `u64` value to the hasher.
     ///
@@ -154,7 +171,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `u64` value to hash
-    fn write_u64(&mut self, i: u64) { self.write(&i.to_le_bytes()); }
+    fn write_u64(&mut self, i: u64) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `i64` value to the hasher.
     ///
@@ -163,7 +182,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `i64` value to hash
-    fn write_i64(&mut self, i: i64) { self.write(&i.to_le_bytes()); }
+    fn write_i64(&mut self, i: i64) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `u128` value to the hasher.
     ///
@@ -172,7 +193,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `u128` value to hash
-    fn write_u128(&mut self, i: u128) { self.write(&i.to_le_bytes()); }
+    fn write_u128(&mut self, i: u128) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `i128` value to the hasher.
     ///
@@ -181,7 +204,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `i128` value to hash
-    fn write_i128(&mut self, i: i128) { self.write(&i.to_le_bytes()); }
+    fn write_i128(&mut self, i: i128) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `usize` value to the hasher.
     ///
@@ -190,7 +215,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `usize` value to hash
-    fn write_usize(&mut self, i: usize) { self.write(&i.to_le_bytes()); }
+    fn write_usize(&mut self, i: usize) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `isize` value to the hasher.
     ///
@@ -199,7 +226,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `i` - The `isize` value to hash
-    fn write_isize(&mut self, i: isize) { self.write(&i.to_le_bytes()); }
+    fn write_isize(&mut self, i: isize) {
+        self.write(&i.to_le_bytes());
+    }
 
     /// Writes a single `f32` value to the hasher.
     ///
@@ -239,7 +268,9 @@ pub trait StableHasher: Send + Sync + 'static {
     /// # Arguments
     ///
     /// * `len` - The length value to write as a prefix
-    fn write_length_prefix(&mut self, len: usize) { self.write_usize(len); }
+    fn write_length_prefix(&mut self, len: usize) {
+        self.write_usize(len);
+    }
 
     /// Writes a string to the hasher.
     ///
@@ -320,27 +351,39 @@ static_assertions::assert_obj_safe!(StableHasher<Hash = u128>);
 static_assertions::assert_obj_safe!(StableHasher<Hash = u64>);
 
 impl Value for u8 {
-    fn wrapping_add(self, other: Self) -> Self { self.wrapping_add(other) }
+    fn wrapping_add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
 }
 
 impl Value for u16 {
-    fn wrapping_add(self, other: Self) -> Self { self.wrapping_add(other) }
+    fn wrapping_add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
 }
 
 impl Value for u32 {
-    fn wrapping_add(self, other: Self) -> Self { self.wrapping_add(other) }
+    fn wrapping_add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
 }
 
 impl Value for u64 {
-    fn wrapping_add(self, other: Self) -> Self { self.wrapping_add(other) }
+    fn wrapping_add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
 }
 
 impl Value for u128 {
-    fn wrapping_add(self, other: Self) -> Self { self.wrapping_add(other) }
+    fn wrapping_add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
 }
 
 impl Value for usize {
-    fn wrapping_add(self, other: Self) -> Self { self.wrapping_add(other) }
+    fn wrapping_add(self, other: Self) -> Self {
+        self.wrapping_add(other)
+    }
 }
 
 impl StableHash for u8 {
@@ -440,6 +483,29 @@ impl StableHash for String {
 }
 
 impl<T: StableHash> StableHash for Vec<T> {
+    fn stable_hash<H: StableHasher + ?Sized>(&self, state: &mut H) {
+        state.write_length_prefix(self.len());
+        for item in self {
+            item.stable_hash(state);
+        }
+    }
+}
+
+#[cfg(feature = "smallvec")]
+impl<T: StableHash + Array> StableHash for SmallVec<T>
+where
+    T::Item: StableHash,
+{
+    fn stable_hash<H: StableHasher + ?Sized>(&self, state: &mut H) {
+        state.write_length_prefix(self.len());
+        for item in self {
+            item.stable_hash(state);
+        }
+    }
+}
+
+#[cfg(feature = "bitvec")]
+impl<T: StableHash + BitStore, O: BitOrder> StableHash for BitVec<T, O> {
     fn stable_hash<H: StableHasher + ?Sized>(&self, state: &mut H) {
         state.write_length_prefix(self.len());
         for item in self {
@@ -935,9 +1001,13 @@ impl<T> StableHash for std::marker::PhantomData<T> {
 impl StableHasher for siphasher::sip128::SipHasher {
     type Hash = u128;
 
-    fn finish(&self) -> Self::Hash { self.finish128().into() }
+    fn finish(&self) -> Self::Hash {
+        self.finish128().into()
+    }
 
-    fn write(&mut self, bytes: &[u8]) { std::hash::Hasher::write(self, bytes); }
+    fn write(&mut self, bytes: &[u8]) {
+        std::hash::Hasher::write(self, bytes);
+    }
 
     fn sub_hash(
         &self,
@@ -970,7 +1040,9 @@ pub struct Compact128(u64, u64);
 
 impl From<u128> for Compact128 {
     #[allow(clippy::cast_possible_truncation)]
-    fn from(value: u128) -> Self { Self(value as u64, (value >> 64) as u64) }
+    fn from(value: u128) -> Self {
+        Self(value as u64, (value >> 64) as u64)
+    }
 }
 
 impl Compact128 {
@@ -986,11 +1058,15 @@ impl Compact128 {
 
     /// Returns the lower 64 bits of the `Compact128` value.
     #[must_use]
-    pub const fn low(&self) -> u64 { self.0 }
+    pub const fn low(&self) -> u64 {
+        self.0
+    }
 
     /// Returns the higher 64 bits of the `Compact128` value.
     #[must_use]
-    pub const fn high(&self) -> u64 { self.1 }
+    pub const fn high(&self) -> u64 {
+        self.1
+    }
 }
 
 /// A trait for building stable hashers.
@@ -1020,7 +1096,9 @@ impl<H: StableHasher + Default> BuildStableHasher
 
     type Hasher = H;
 
-    fn build_stable_hasher(&self) -> Self::Hasher { H::default() }
+    fn build_stable_hasher(&self) -> Self::Hasher {
+        H::default()
+    }
 }
 
 /// A builder for creating seeded stable hashers.
@@ -1033,7 +1111,9 @@ pub struct SeededStableHasherBuilder<H> {
 impl<H> SeededStableHasherBuilder<H> {
     /// Creates a new seeded stable hasher builder.
     #[must_use]
-    pub fn new(seed: u64) -> Self { Self { seed, hasher: PhantomData } }
+    pub fn new(seed: u64) -> Self {
+        Self { seed, hasher: PhantomData }
+    }
 }
 
 impl<H: StableHasher + Default> BuildStableHasher
