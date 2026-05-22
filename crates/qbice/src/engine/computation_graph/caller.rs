@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     engine::computation_graph::{
-        ActiveComputationGuard, computing::QueryComputing, database::Timestamp,
+        ActiveComputationGuard, computing::QueryState, database::Timestamp,
     },
     query::QueryID,
 };
@@ -27,7 +27,7 @@ impl std::fmt::Debug for CallerReason {
 #[derive(Debug, Clone)]
 pub struct QueryCaller {
     query_id: QueryID,
-    computing: Option<Arc<QueryComputing>>,
+    work_in_progress: Option<Arc<QueryState>>,
     reason: CallerReason,
 
     /// Pedantic repair forces the repair process to eagerly recursively invoke
@@ -40,10 +40,10 @@ impl QueryCaller {
     pub const fn new_with_pedantic_repair(
         query_id: QueryID,
         reason: CallerReason,
-        computing: Arc<QueryComputing>,
+        in_progress: Arc<QueryState>,
         pedantic_repair: bool,
     ) -> Self {
-        Self { query_id, computing: Some(computing), reason, pedantic_repair }
+        Self { query_id, work_in_progress: Some(in_progress), reason, pedantic_repair }
     }
 
     pub const fn new_external_input(
@@ -52,7 +52,7 @@ impl QueryCaller {
     ) -> Self {
         Self {
             query_id,
-            computing: None,
+            work_in_progress: None,
             reason: CallerReason::RequireValue(Some(worker)),
             pedantic_repair: false,
         }
@@ -60,15 +60,9 @@ impl QueryCaller {
 
     pub const fn pedantic_repair(&self) -> bool { self.pedantic_repair }
 
-    pub const fn try_computing(&self) -> Option<&Arc<QueryComputing>> {
-        self.computing.as_ref()
-    }
-
     #[must_use]
-    pub const fn computing(&self) -> &Arc<QueryComputing> {
-        self.computing
-            .as_ref()
-            .expect("`ExternalInput` cannot call other queries")
+    pub const fn work_in_progress(&self) -> Option<&Arc<QueryState>> {
+        self.work_in_progress.as_ref()
     }
 
     #[must_use]

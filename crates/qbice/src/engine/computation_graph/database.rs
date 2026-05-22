@@ -2,12 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     hash::{BuildHasher, Hash},
     marker::PhantomData,
-    mem::ManuallyDrop,
     pin::Pin,
     sync::Arc,
 };
 
-use crossbeam::sync::WaitGroup;
 use dashmap::DashSet;
 use enum_as_inner::EnumAsInner;
 use ouroboros::self_referencing;
@@ -520,119 +518,61 @@ type WriteTransaction<C> =
 
 #[allow(clippy::type_complexity)]
 pub struct Database<C: Config> {
-    sync: ManuallyDrop<sync::Sync<C>>,
+    sync: sync::Writer<C>,
 
-    last_verified: ManuallyDrop<SingleMap<C, QueryNodeColumn, LastVerified>>,
-    forward_edge_order:
-        ManuallyDrop<SingleMap<C, QueryNodeColumn, ForwardEdgeOrder>>,
-    forward_edge_observation:
-        ManuallyDrop<SingleMap<C, QueryNodeColumn, ForwardEdgeObservation<C>>>,
+    last_verified: SingleMap<C, QueryNodeColumn, LastVerified>,
+    forward_edge_order: SingleMap<C, QueryNodeColumn, ForwardEdgeOrder>,
+    forward_edge_observation: SingleMap<C, QueryNodeColumn, ForwardEdgeObservation<C>>,
 
-    query_kind: ManuallyDrop<SingleMap<C, QueryNodeColumn, QueryKind>>,
-    node_info: ManuallyDrop<SingleMap<C, QueryNodeColumn, NodeInfo>>,
-    pending_backward_projection:
-        ManuallyDrop<SingleMap<C, QueryNodeColumn, PendingBackwardProjection>>,
+    query_kind: SingleMap<C, QueryNodeColumn, QueryKind>,
+    node_info: SingleMap<C, QueryNodeColumn, NodeInfo>,
+    pending_backward_projection: SingleMap<C, QueryNodeColumn, PendingBackwardProjection>,
 
-    dirty_edge_set: ManuallyDrop<SingleMap<C, DirtySetColumn, Unit>>,
+    dirty_edge_set: SingleMap<C, DirtySetColumn, Unit>,
 
-    query_store: ManuallyDrop<DynamicMap<C, QueryStoreColumn>>,
+    query_store: DynamicMap<C, QueryStoreColumn>,
 
-    backward_edges: ManuallyDrop<
-        KeyOfSetMap<
-            C,
-            BackwardEdgeColumn<C>,
-            CompressedBackwardEdgeSet<C::BuildHasher>,
-        >,
+    backward_edges: KeyOfSetMap<
+        C,
+        BackwardEdgeColumn<C>,
+        CompressedBackwardEdgeSet<C::BuildHasher>,
     >,
 
-    external_input_queries: ManuallyDrop<
-        KeyOfSetMap<
-            C,
-            ExternalInputColumn<C>,
-            Arc<DashSet<Compact128, C::BuildHasher>>,
-        >,
+    external_input_queries: KeyOfSetMap<
+        C,
+        ExternalInputColumn<C>,
+        Arc<DashSet<Compact128, C::BuildHasher>>,
     >,
 }
 
 impl<C: Config> Database<C> {
     pub async fn new(db: &C::StorageEngine) -> Self {
         Self {
-            last_verified: ManuallyDrop::new(db.new_single_map::<QueryNodeColumn, LastVerified>()),
+            last_verified: db.new_single_map::<QueryNodeColumn, LastVerified>(),
             forward_edge_order:
-                ManuallyDrop::new(db.new_single_map::<QueryNodeColumn, ForwardEdgeOrder>()),
-            forward_edge_observation: ManuallyDrop::new(db
-                .new_single_map::<QueryNodeColumn, ForwardEdgeObservation<C>>()),
-            query_kind: ManuallyDrop::new(db.new_single_map::<QueryNodeColumn, QueryKind>()),
-            node_info: ManuallyDrop::new(db.new_single_map::<QueryNodeColumn, NodeInfo>()),
-            pending_backward_projection: ManuallyDrop::new(db
-                .new_single_map::<QueryNodeColumn, PendingBackwardProjection>()),
+                db.new_single_map::<QueryNodeColumn, ForwardEdgeOrder>(),
+            forward_edge_observation: db
+                .new_single_map::<QueryNodeColumn, ForwardEdgeObservation<C>>(),
+            query_kind: db.new_single_map::<QueryNodeColumn, QueryKind>(),
+            node_info: db.new_single_map::<QueryNodeColumn, NodeInfo>(),
+            pending_backward_projection: db
+                .new_single_map::<QueryNodeColumn, PendingBackwardProjection>(),
 
-            dirty_edge_set: ManuallyDrop::new(db.new_single_map::<DirtySetColumn, Unit>()),
+            dirty_edge_set: db.new_single_map::<DirtySetColumn, Unit>(),
 
-            query_store: ManuallyDrop::new(db.new_dynamic_map::<QueryStoreColumn>()),
+            query_store: db.new_dynamic_map::<QueryStoreColumn>(),
 
-            backward_edges: ManuallyDrop::new(db.new_key_of_set_map::<
+            backward_edges: db.new_key_of_set_map::<
                 BackwardEdgeColumn<C>,
                 CompressedBackwardEdgeSet<C::BuildHasher>,
-            >()),
+            >(),
 
-            external_input_queries: ManuallyDrop::new(db.new_key_of_set_map::<
+            external_input_queries: db.new_key_of_set_map::<
                 ExternalInputColumn<C>,
                 Arc<DashSet<Compact128, C::BuildHasher>>,
-            >()),
+            >(),
 
-            sync: ManuallyDrop::new(sync::Sync::new(db).await),
-        }
-    }
-}
-
-impl<C: Config> Drop for Database<C> {
-    fn drop(&mut self) {
-        unsafe {
-            macro_rules! drop_async {
-                ($wait_group:ident, $drop:ident) => {{
-                    let wait_group = $wait_group.clone();
-
-                    tokio::task::spawn_blocking(move || {
-                        drop($drop);
-                        drop(wait_group);
-                    });
-                }};
-            }
-            let wait_group = WaitGroup::new();
-
-            // These are the heavy data structures that take time to drop.
-            let sync = ManuallyDrop::take(&mut self.sync);
-            let last_verified = ManuallyDrop::take(&mut self.last_verified);
-            let forward_edge_order =
-                ManuallyDrop::take(&mut self.forward_edge_order);
-            let forward_edge_observation =
-                ManuallyDrop::take(&mut self.forward_edge_observation);
-            let query_kind = ManuallyDrop::take(&mut self.query_kind);
-            let node_info = ManuallyDrop::take(&mut self.node_info);
-            let pending_backward_projection =
-                ManuallyDrop::take(&mut self.pending_backward_projection);
-            let dirty_edge_set = ManuallyDrop::take(&mut self.dirty_edge_set);
-            let query_store = ManuallyDrop::take(&mut self.query_store);
-            let backward_edges = ManuallyDrop::take(&mut self.backward_edges);
-            let external_input_queries =
-                ManuallyDrop::take(&mut self.external_input_queries);
-
-            drop_async!(wait_group, sync);
-            drop_async!(wait_group, last_verified);
-            drop_async!(wait_group, forward_edge_order);
-            drop_async!(wait_group, forward_edge_observation);
-            drop_async!(wait_group, query_kind);
-            drop_async!(wait_group, node_info);
-            drop_async!(wait_group, pending_backward_projection);
-            drop_async!(wait_group, dirty_edge_set);
-            drop_async!(wait_group, query_store);
-            drop_async!(wait_group, backward_edges);
-            drop_async!(wait_group, external_input_queries);
-
-            // blocks until all the above data structures are dropped in their
-            // respective threads
-            wait_group.wait();
+            sync: sync::Writer::new(db).await,
         }
     }
 }

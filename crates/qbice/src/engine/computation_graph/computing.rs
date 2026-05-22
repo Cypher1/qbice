@@ -113,7 +113,7 @@ pub struct ComputingForwardEdges {
     pub callee_order: RwLock<CalleeOrder>,
 }
 
-impl QueryComputing {
+impl QueryState {
     pub fn register_calee(&self, callee: &QueryID) {
         if self.callee_info.callee_queries.contains_sync(callee) {
             return;
@@ -151,10 +151,12 @@ impl QueryComputing {
         self.callee_info.callee_order.write().clear();
     }
 
+    /// Mark part of a strongly connected component.
     pub fn mark_scc(&self) {
         self.is_in_scc.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
+    /// Is part of a strongly connected component.
     pub fn is_in_scc(&self) -> bool {
         self.is_in_scc.load(std::sync::atomic::Ordering::SeqCst)
     }
@@ -197,11 +199,11 @@ impl QueryComputing {
                 for q in
                     callee_info.transitive_firewall_callees().iter().copied()
                 {
-                    let _ = self.tfc.insert_sync(q);
+                    let _ = self.tfc.insert_sync(q); // drop result if duplicate
                 }
             }
             QueryKind::Executable(ExecutionStyle::Firewall) => {
-                let _ = self.tfc.insert_sync(callee_id);
+                let _ = self.tfc.insert_sync(callee_id); // drop result if duplicate
             }
         }
     }
@@ -216,17 +218,19 @@ pub enum ComputingMode {
 }
 
 #[derive(Debug)]
-pub struct QueryComputing {
+pub struct QueryState {
     /// Notifier to trigger upstream computations.
     notify: Arc<Notify>,
     /// Tracks nodes that need to be updated to compute this Query's results.
     callee_info: ComputingForwardEdges,
+    /// Is known to be in a strongly connected component.
     is_in_scc: Arc<AtomicBool>,
+    /// Transitive Firewall Closure (all firewalls downstream of this query),
     tfc: scc::HashSet<QueryID, FxBuildHasher>,
     query_kind: QueryKind,
 }
 
-impl QueryComputing {
+impl QueryState {
     pub fn notified_owned(&self) -> OwnedNotified {
         self.notify.clone().notified_owned()
     }
@@ -277,9 +281,9 @@ impl<C: Config> Drop for BackwardProjectionLockGuard<C> {
 }
 
 pub struct Computing<C: Config> {
-    // The computing lock is from QueryID to QueryComputing...
-    // What is a QueryComputing?
-    computing_lock: scc::HashMap<QueryID, Arc<QueryComputing>, C::BuildHasher>,
+    /// The computing lock ensures a query executor only runs a single query of each type at a time.
+    /// This prevents computing the same query more than once in parallel / concurrently.
+    computing_lock: scc::HashMap<QueryID, Arc<QueryState>, C::BuildHasher>,
     backward_projection_lock:
         scc::HashMap<QueryID, PendingBackwardProjection, C::BuildHasher>,
 }
@@ -297,7 +301,7 @@ impl<C: Config> Computing<C> {
 
 pub struct ComputingLockGuard<C: Config> {
     engine: Arc<Engine<C>>,
-    this_computing: Arc<QueryComputing>,
+    active_query: Arc<QueryState>,
     query_id: QueryID,
     defused: bool,
     computing_mode: ComputingMode,
@@ -306,8 +310,8 @@ pub struct ComputingLockGuard<C: Config> {
 impl<C: Config> ComputingLockGuard<C> {
     pub const fn computing_mode(&self) -> ComputingMode { self.computing_mode }
 
-    pub const fn query_computing(&self) -> &Arc<QueryComputing> {
-        &self.this_computing
+    pub const fn active_query(&self) -> &Arc<QueryState> {
+        &self.active_query
     }
 }
 
@@ -342,14 +346,14 @@ impl<C: Config> Computing<C> {
     pub fn try_get_query_computing(
         &self,
         query_id: &QueryID,
-    ) -> Option<Arc<QueryComputing>> {
+    ) -> Option<Arc<QueryState>> {
         self.computing_lock.read_sync(query_id, |_, v| v.clone())
     }
 
     pub fn try_get_notified_computing_lock(
         &self,
         query_id: &QueryID,
-    ) -> Option<(OwnedNotified, Arc<QueryComputing>)> {
+    ) -> Option<(OwnedNotified, Arc<QueryState>)> {
         self.computing_lock
             .read_sync(query_id, |_, v| (v.notified_owned(), v.clone()))
     }
@@ -381,12 +385,14 @@ impl<C: Config> Engine<C> {
         };
 
         let is_in_scc =
-            self.check_cyclic(&running_state, &query_caller.query_id());
+            self.check_scc(&running_state, &query_caller.query_id());
 
         // mark the caller as being in scc
         if is_in_scc {
-            let computing = query_caller.computing();
-            computing.mark_scc();
+            let work_in_progress = query_caller.work_in_progress();
+            work_in_progress
+                .expect("`ExternalInput` cannot call other queries")
+                .mark_scc();
 
             return Err(CyclicError);
         }
@@ -400,7 +406,7 @@ impl<C: Config> Engine<C> {
     #[allow(clippy::needless_pass_by_value)]
     fn check_cyclic_internal(
         &self,
-        computing: &QueryComputing,
+        computing: &QueryState,
         target: &QueryID,
     ) -> bool {
         if computing.callee_info.callee_queries.contains_sync(target) {
@@ -437,9 +443,9 @@ impl<C: Config> Engine<C> {
 
     /// Checks whether the stack of computing queries contains a cycle
     #[allow(clippy::needless_pass_by_value)]
-    pub(super) fn check_cyclic(
+    pub(super) fn check_scc(
         &self,
-        running_state: &QueryComputing,
+        running_state: &QueryState,
         target: &QueryID,
     ) -> bool {
         self.check_cyclic_internal(running_state, target)
@@ -449,7 +455,7 @@ impl<C: Config> Engine<C> {
         caller: &CallerInformation,
     ) -> Result<(), CyclicError> {
         let Some(query_caller) =
-            caller.get_query_caller().and_then(|x| x.try_computing())
+            caller.get_query_caller().and_then(|x| x.work_in_progress())
         else {
             return Ok(());
         };
@@ -489,7 +495,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
             (ComputingMode::Execute, QueryKind::Executable(style))
         };
 
-        let entry = Arc::new(QueryComputing {
+        let entry = Arc::new(QueryState {
             callee_info: ComputingForwardEdges {
                 callee_queries: scc::HashMap::with_hasher(
                     FxBuildHasher::default(),
@@ -531,7 +537,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
                     query_id: *self.query_id(),
                     defused: false,
                     computing_mode: mode,
-                    this_computing: entry,
+                    active_query: entry,
                 })
             }
         };
@@ -643,46 +649,42 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         clean_existing_forward_edges: bool,
         continuing_tx: WriteTransaction<C>,
     ) {
-        let (query_kind, forward_edge_order, forward_edges, tfc_archetype) = {
-            (
-                lock_guard.this_computing.query_kind,
-                std::mem::take(
-                    &mut lock_guard
-                        .this_computing
-                        .callee_info
-                        .callee_order
-                        .write()
-                        .order,
-                ),
-                {
-                    let mut hash_map = HashMap::with_capacity_and_hasher(
-                        lock_guard
-                            .this_computing
-                            .callee_info
-                            .callee_queries
-                            .len(),
-                        C::BuildHasher::default(),
-                    );
+        let query_kind = lock_guard.active_query.query_kind;
+        let forward_edge_order =  std::mem::take(
+                &mut lock_guard
+                    .active_query
+                    .callee_info
+                    .callee_order
+                    .write()
+                    .order,
+            );
+        let forward_edges = {
+            let mut hash_map = HashMap::with_capacity_and_hasher(
+                lock_guard
+                    .active_query
+                    .callee_info
+                    .callee_queries
+                    .len(),
+                C::BuildHasher::default(),
+            );
 
-                    lock_guard
-                        .this_computing
-                        .callee_info
-                        .callee_queries
-                        .iter_sync(|k, v| {
-                            if let Some(obs) = v {
-                                hash_map.insert(*k, *obs);
-                            }
+            lock_guard
+                .active_query
+                .callee_info
+                .callee_queries
+                .iter_sync(|k, v| {
+                    if let Some(obs) = v {
+                        hash_map.insert(*k, *obs);
+                    }
 
-                            true
-                        });
+                    true
+                });
 
-                    hash_map
-                },
-                self.engine().create_tfc_from_scc_hash_set(
-                    &lock_guard.this_computing.tfc,
-                ),
-            )
+            hash_map
         };
+        let tfc_archetype = self.engine().create_tfc_from_scc_hash_set(
+            &lock_guard.active_query.tfc,
+        );
 
         self.set_computed(
             query,
@@ -754,7 +756,8 @@ impl<C: Config> TrackedEngine<C> {
                      `Executor` computing the query"
                 )
             })
-            .computing()
+            .work_in_progress()
+            .expect("`ExternalInput` cannot call other queries")
             .start_unordered_callee_group();
     }
 
@@ -777,7 +780,8 @@ impl<C: Config> TrackedEngine<C> {
                      `Executor` computing the query"
                 )
             })
-            .computing()
+            .work_in_progress()
+            .expect("`ExternalInput` cannot call other queries")
             .end_unordered_callee_group();
     }
 }

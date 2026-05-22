@@ -75,7 +75,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
                                 active_computation_graph.clone(),
                             ),
                         )
-                        .await;
+                        .await; // Cyclic errors shouldn't affect repair.
                 }
             });
         }
@@ -83,7 +83,6 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         while let Some(res) = join_set.join_next().await {
             match res {
                 Ok(()) => {}
-
                 Err(er) => match er.try_into_panic() {
                     Ok(panic_reason) => {
                         std::panic::resume_unwind(panic_reason);

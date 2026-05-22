@@ -38,10 +38,10 @@ impl WideColumnValue<TimestampColumn> for Timestamp {
     fn discriminant() {}
 }
 
-pub struct Sync<C: Config> {
+pub struct Writer<C: Config> {
     write_manager: <C::StorageEngine as StorageEngine>::WriteManager,
     timestamp: AtomicU64,
-    phase_mutex: Arc<RwLock<()>>,
+    phase_mutex: Arc<RwLock<()>>, // Holds nothing...
     timestamp_map: SingleMap<C, TimestampColumn, Timestamp>,
 }
 
@@ -55,7 +55,7 @@ pub struct ActiveInputSessionGuard(
     #[allow(unused)] Arc<OwnedRwLockWriteGuard<()>>,
 );
 
-impl<C: Config> Sync<C> {
+impl<C: Config> Writer<C> {
     pub async fn new(db: &C::StorageEngine) -> Self {
         let write_manager = db.new_write_manager();
         let timestamp_map = db.new_single_map::<TimestampColumn, Timestamp>();
@@ -91,9 +91,10 @@ impl<C: Config> Engine<C> {
         self.computation_graph.database.sync.write_manager.new_write_batch()
     }
 
-    pub(in crate::engine::computation_graph) async fn acquire_active_computation_guard(
+    pub(in crate::engine::computation_graph) async fn acquire_read_lock(
         &self,
     ) -> (ActiveComputationGuard, Timestamp) {
+        // TODO: This just needs to be replaced with a per-input session and query-session Snapshot...
         let guard = self
             .computation_graph
             .database
@@ -114,9 +115,10 @@ impl<C: Config> Engine<C> {
         (ActiveComputationGuard(Arc::new(guard)), timestamp)
     }
 
-    pub(in crate::engine::computation_graph) async fn acquire_active_input_session_guard(
+    pub(in crate::engine::computation_graph) async fn acquire_write_lock(
         &self,
     ) -> (WriteTransaction<C>, ActiveInputSessionGuard) {
+        // TODO: This just needs to be replaced with a per-input session and query-session Snapshot...
         let mut write_buffer = self
             .computation_graph
             .database
@@ -147,6 +149,10 @@ impl<C: Config> Engine<C> {
             .clone()
             .write_owned()
             .await;
+        // This is an in-memory lock around transactions, forcing only one transaction at a time.
+        // Not all DBs require this, and in fact we don't really want it...
+        // We want to error out when there's conflicts and let user code handle it.
+        // Sooooo.... what if we remove the guard?
 
         (write_buffer, ActiveInputSessionGuard(Arc::new(guard)))
     }

@@ -111,7 +111,7 @@ impl<C: Config> Engine<C> {
     #[must_use]
     async fn snapshot_graph_from<Q: Query>(&self, query: &Q) -> GraphSnapshot {
         let (active_computation_guard, timestamp) =
-            self.acquire_active_computation_guard().await;
+            self.acquire_read_lock().await;
 
         let _caller = CallerInformation::new(
             CallerKind::Tracing,

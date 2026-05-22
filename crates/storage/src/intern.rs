@@ -688,11 +688,14 @@ impl std::fmt::Debug for VacuumThreadHandle {
 impl Drop for VacuumThreadHandle {
     fn drop(&mut self) {
         // Signal the thread to stop
-        let _ = self.command_sender.send(VacuumCommand::Stop);
+        // We do not need to stop the vacuum.
+        self.command_sender.send(VacuumCommand::Stop)
+            .expect("Failed to send Vacuum stop command");
 
         // Wait for the thread to finish
         if let Some(handle) = self.join_handle.take() {
-            let _ = handle.join();
+                // We do not need to capture if the vacuum crashed.
+                let _ = handle.join();
         }
     }
 }

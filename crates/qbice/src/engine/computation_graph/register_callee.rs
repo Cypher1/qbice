@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     Engine, ExecutionStyle,
     config::Config,
-    engine::computation_graph::{CallerInformation, computing::QueryComputing},
+    engine::computation_graph::{CallerInformation, computing::QueryState},
     query::QueryID,
 };
 
@@ -12,7 +12,7 @@ use crate::{
 /// This aims to ensure cancelation safety in case of the task being yielded and
 /// canceled mid query.
 pub struct UndoRegisterCallee {
-    query_computing: Arc<QueryComputing>,
+    work_in_progress: Arc<QueryState>,
     callee_target: QueryID,
     defused: bool,
 }
@@ -20,10 +20,10 @@ pub struct UndoRegisterCallee {
 impl UndoRegisterCallee {
     /// Creates a new [`UndoRegisterCallee`] instance.
     pub const fn new(
-        query_computing: Arc<QueryComputing>,
+        work_in_progress: Arc<QueryState>,
         callee_target: QueryID,
     ) -> Self {
-        Self { query_computing, callee_target, defused: false }
+        Self { work_in_progress, callee_target, defused: false }
     }
 
     /// Don't undo the registration when dropped.
@@ -36,7 +36,7 @@ impl Drop for UndoRegisterCallee {
             return;
         }
 
-        self.query_computing.abort_callee(&self.callee_target);
+        self.work_in_progress.abort_callee(&self.callee_target);
     }
 }
 impl<C: Config> Engine<C> {
@@ -50,7 +50,9 @@ impl<C: Config> Engine<C> {
         caller.get_query_caller().map_or_else(
             || None,
             |caller| {
-                let computing = caller.computing();
+                let computing = caller
+                    .work_in_progress()
+                    .expect("`ExternalInput` cannot call other queries");
 
                 assert!(
                     !computing.query_kind().is_external_input(),

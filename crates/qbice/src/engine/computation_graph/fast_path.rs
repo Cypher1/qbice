@@ -80,13 +80,18 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         query_kind: QueryKind,
     ) {
         // add dependency for the caller
-        query_caller.computing().observe_callee(
+        query_caller
+            .work_in_progress()
+            .expect("`ExternalInput` cannot call other queries")
+            .observe_callee(
             self.query_id(),
             query_info.value_fingerprint(),
             query_info.transitive_firewall_callees_fingerprint(),
         );
 
-        query_caller.computing().caller_observe_tfc_callees(
+        query_caller.work_in_progress()
+            .expect("`ExternalInput` cannot call other queries")
+            .caller_observe_tfc_callees(
             query_info,
             query_kind,
             *self.query_id(),

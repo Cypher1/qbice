@@ -67,7 +67,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
                 CallerKind::Query(QueryCaller::new_with_pedantic_repair(
                     *self.query_id(),
                     CallerReason::RequireValue(Some(wait_group.worker())),
-                    lock_guard.query_computing().clone(),
+                    lock_guard.active_query().clone(),
                     pedantic_repair,
                 )),
                 caller_information.timestamp(),
@@ -86,7 +86,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         drop(tracked_engine);
         wait_group.wait().await;
 
-        let is_in_scc = lock_guard.query_computing().is_in_scc();
+        let is_in_scc = lock_guard.active_query().is_in_scc();
 
         // if `is_in_scc` is `true`, it means that the query is part of
         // a strongly connected component (SCC) and the
@@ -94,7 +94,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         // should be a valid value.
 
         let value = if is_in_scc {
-            // obtain the SCC value
+            // obtain the value for a strongly connected cycle (SCC)
             entry.obtain_scc_value::<Q>()
         } else {
             match result {

@@ -121,7 +121,7 @@ impl<C: Config> InputSession<C> {
         engine.clear_dirtied_queries();
 
         transaction = engine
-            .dirty_propagate_from_batch(dirty_batch.into_iter(), transaction)
+            .dirty_propagate_from_batch(dirty_batch, transaction)
             .await;
 
         engine.submit_write_buffer(transaction);
@@ -138,6 +138,7 @@ impl<C: Config> std::fmt::Debug for InputSession<C> {
 }
 
 impl<C: Config> Engine<C> {
+    // TODO(cypher1): HERE
     /// Creates an input session for setting or updating input query values.
     ///
     /// An input session provides a transactional interface for modifying
@@ -175,7 +176,7 @@ impl<C: Config> Engine<C> {
     pub async fn input_session(self: &Arc<Self>) -> InputSession<C> {
         // acquire a write lock on the write buffer and increment timestamp
         let (write_buffer_with_lock, active_input_session_guard) =
-            self.acquire_active_input_session_guard().await;
+            self.acquire_write_lock().await;
 
         InputSession {
             dirty_batch: Arc::new(RwLock::new(VecDeque::new())),

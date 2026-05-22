@@ -16,7 +16,7 @@ use crate::{
     engine::computation_graph::{
         ActiveComputationGuard, QueryKind, QueryStatus, QueryWithID,
         caller::{CallerInformation, CallerKind, CallerReason, QueryCaller},
-        computing::{ComputingLockGuard, QueryComputing},
+        computing::{ComputingLockGuard, QueryState},
         database::{Snapshot, Timestamp},
     },
     executor::CyclicError,
@@ -80,7 +80,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         // order to determine if the query needs to be recomputed. When it's
         // decided to recompute, we will have to clear the dependencies recorded
         // during the repairation phase to avoid keeping stale dependencies.
-        lock_guard.query_computing().clear_dependencies();
+        lock_guard.active_query().clear_dependencies();
 
         // recompute the query
         snapshot
@@ -243,7 +243,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         forward_edge_observation: &ForwardEdgeObservation<C>,
         current_timestamp: Timestamp,
         active_computation_guard: Option<&ActiveComputationGuard>,
-        query_computing: &Arc<QueryComputing>,
+        query_computing: &Arc<QueryState>,
         pedantic_repair: bool,
     ) -> CalleeCheckDecision {
         // skip if not dirty
@@ -253,11 +253,11 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         if !edge_is_dirty
             && !pedantic_repair
 
-            // This is required due to the dynamic firewall and projection 
-            // scenario. 
+            // This is required due to the dynamic firewall and projection
+            // scenario.
             //
             // To understand why, try to comment out this condition and run
-            // the `dynamic_firewall_and_projection` test. You will see that 
+            // the `dynamic_firewall_and_projection` test. You will see that
             // the test will fail due to this condition.
             && !current_query_kind.is_projection()
         {
@@ -301,7 +301,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         // recompute
         {
             // SAFETY: we have just repaired the callee, so the node info
-            // must exist and immutable now.
+            // must exist and be immutable now.
             let callee_node_info =
                 unsafe { engine.get_node_info_unchecked(callee).await };
 
@@ -349,7 +349,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         forward_edge_observation: &ForwardEdgeObservation<C>,
         current_timestamp: Timestamp,
         active_computation_guard: Option<&ActiveComputationGuard>,
-        computing_lock_guard: &Arc<QueryComputing>,
+        computing_lock_guard: &Arc<QueryState>,
         pedantic_repair: bool,
         cancelled: Arc<AtomicBool>,
     ) -> ChunkedCalleeCheckDecision {
@@ -437,7 +437,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
                         &forward_edge_observation,
                         caller_information.timestamp(),
                         caller_information.active_computation_guard(),
-                        computing_lock_guard.query_computing(),
+                        computing_lock_guard.active_query(),
                         caller_information.get_query_caller().is_some_and(
                             super::caller::QueryCaller::pedantic_repair,
                         ),
@@ -492,7 +492,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
                         let active_computation_guard =
                             caller_information.clone_active_computation_guard();
                         let computing_lock_guard =
-                            computing_lock_guard.query_computing().clone();
+                            computing_lock_guard.active_query().clone();
                         let pedantic_repair =
                             caller_information.get_query_caller().is_some_and(
                                 super::caller::QueryCaller::pedantic_repair,

@@ -356,7 +356,7 @@ impl<C: Config> Engine<C> {
     #[allow(clippy::unused_async)]
     pub async fn tracked(self: Arc<Self>) -> TrackedEngine<C> {
         let (active_computation_guard, timestamp) =
-            self.acquire_active_computation_guard().await;
+            self.acquire_read_lock().await;
 
         TrackedEngine {
             caller: CallerInformation::new(
