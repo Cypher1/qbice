@@ -217,7 +217,9 @@ pub enum ComputingMode {
 
 #[derive(Debug)]
 pub struct QueryComputing {
+    /// Notifier to trigger upstream computations.
     notify: Arc<Notify>,
+    /// Tracks nodes that need to be updated to compute this Query's results.
     callee_info: ComputingForwardEdges,
     is_in_scc: Arc<AtomicBool>,
     tfc: scc::HashSet<QueryID, FxBuildHasher>,
@@ -275,6 +277,8 @@ impl<C: Config> Drop for BackwardProjectionLockGuard<C> {
 }
 
 pub struct Computing<C: Config> {
+    // The computing lock is from QueryID to QueryComputing...
+    // What is a QueryComputing?
     computing_lock: scc::HashMap<QueryID, Arc<QueryComputing>, C::BuildHasher>,
     backward_projection_lock:
         scc::HashMap<QueryID, PendingBackwardProjection, C::BuildHasher>,
@@ -614,10 +618,10 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
         mut lock_guard: ComputingLockGuard<C>,
     ) {
         self.upgrade_to_exclusive().await;
-        let timsestamp = caller_information.timestamp();
+        let timestamp = caller_information.timestamp();
 
         async move {
-            self.clean_query(clean_edges, new_tfc, timsestamp).await;
+            self.clean_query(clean_edges, new_tfc, timestamp).await;
 
             lock_guard.done();
         }

@@ -318,7 +318,7 @@ impl<C: Config, Q: Query> Snapshot<C, Q> {
                 return CalleeCheckDecision::Recompute;
             }
 
-            // check wherther the transitive firewall callee needs repair
+            // check whether the transitive firewall callee needs repair
             if !kind.is_firewall() {
                 let tfc_fingerprint_diff = callee_node_info
                     .transitive_firewall_callees_fingerprint()
