@@ -1,5 +1,7 @@
 #![allow(missing_docs)]
 
+use ntest::timeout;
+
 use std::{
     sync::{Arc, atomic::AtomicUsize},
     time::Duration,
@@ -352,7 +354,7 @@ async fn rapid_timestamp_increments() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "timestamp cancellation has been updated, test needs to be fixed"]
+#[timeout(500)]
 async fn stale_tracked_engine_queries_timeout() {
     let tempdir = tempdir().unwrap();
 

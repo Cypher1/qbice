@@ -45,3 +45,6 @@ path = "tests/firewall.rs"
 [[test]]
 name = "timestamp_cancellation"
 path = "tests/timestamp_cancellation.rs"
+
+[dev-dependencies]
+ntest = "0.9.5"
