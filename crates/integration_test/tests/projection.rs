@@ -2,6 +2,8 @@
 #![allow(clippy::must_use_candidate)]
 #![allow(clippy::missing_const_for_fn)]
 
+use ntest::timeout;
+
 use std::{
     collections::HashMap,
     sync::{
@@ -52,7 +54,7 @@ impl<C: Config> Executor<SlowSquare, C> for SlowSquareExecutor {
         let var_value = engine.query(&query.0).await;
 
         // Introduce an artificial delay to simulate a slow computation.
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         var_value * var_value
     }
@@ -122,7 +124,7 @@ impl<C: Config> Executor<CollectDoubledSquareVariables, C>
                 let square = engine.query(&SlowSquare(var)).await;
 
                 // simulating long computation
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
                 (var, square * 2)
             }));
@@ -348,6 +350,7 @@ async fn double_square_summing() {
 // the firewall recomputes.
 
 #[tokio::test(flavor = "multi_thread")]
+#[timeout(3000)] // Prevent serious performance degredation.
 async fn multiple_projections_single_firewall() {
     let tempdir = tempdir().unwrap();
     let mut engine = create_test_engine(&tempdir).await;
@@ -1598,6 +1601,7 @@ async fn firewall_same_output_no_propagation() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[allow(clippy::cast_possible_wrap)]
+#[timeout(60000)] // Prevent serious performance degredation.
 async fn concurrent_projection_access() {
     for _ in 0..500 {
         let tempdir = tempdir().unwrap();

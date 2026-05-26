@@ -13,12 +13,14 @@ use crate::{
     engine::computation_graph::database::Edge, query::QueryID,
 };
 
-pub struct StrippedBuffer {
+pub struct StripedBuffer {
     buffers: Box<[SegQueue<Edge>]>,
     mask: usize,
 }
 
-impl StrippedBuffer {
+const START_COUNT: usize = 1;
+
+impl StripedBuffer {
     pub fn new() -> Self {
         let parallelism = std::thread::available_parallelism()
             .map_or(8, std::num::NonZero::get);
@@ -75,7 +77,7 @@ impl WorkTracker {
             .active_task_count
             .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
 
-        if count == 1 {
+        if count == START_COUNT {
             self.notify.notify_waiters();
         }
     }
@@ -93,7 +95,7 @@ pub struct DirtyTask<C: Config> {
     // to avoid race condition where waiter wakes before Arc is released
     write_tx: ManuallyDrop<Arc<Mutex<WriteTransaction<C>>>>,
     work_tracker: Arc<WorkTracker>,
-    stripped_buffer: Arc<StrippedBuffer>,
+    stripped_buffer: Arc<StripedBuffer>,
 }
 
 impl<C: Config> DirtyTask<C> {
@@ -127,7 +129,7 @@ impl<C: Config> DirtyTask<C> {
 
 pub struct Batch<C: Config> {
     work_traker: Arc<WorkTracker>,
-    stripped_buffer: Arc<StrippedBuffer>,
+    stripped_buffer: Arc<StripedBuffer>,
     // ManuallyDrop ensures we can drop write_tx before calling done()
     // to avoid race condition where waiter wakes before Arc is released
     write_tx: ManuallyDrop<Arc<Mutex<WriteTransaction<C>>>>,
@@ -136,12 +138,11 @@ pub struct Batch<C: Config> {
 impl<C: Config> Batch<C> {
     pub fn new(
         write_tx: Arc<Mutex<WriteTransaction<C>>>,
-        stripped_buffer: Arc<StrippedBuffer>,
+        stripped_buffer: Arc<StripedBuffer>,
     ) -> Self {
         Self {
             work_traker: Arc::new(WorkTracker {
-                active_task_count: AtomicUsize::new(1),
-
+                active_task_count: AtomicUsize::new(START_COUNT),
                 notify: Arc::new(Notify::new()),
             }),
             stripped_buffer,

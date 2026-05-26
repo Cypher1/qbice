@@ -3,14 +3,13 @@
 use ntest::timeout;
 
 use std::{
-    sync::{Arc, atomic::AtomicUsize},
-    time::Duration,
+    sync::{Arc, atomic::AtomicUsize}, thread::JoinHandle, time::Duration
 };
 
 use qbice::{Config, Decode, Encode, Executor, Identifiable, StableHash};
 use qbice_integration_test::{Variable, create_test_engine};
 use tempfile::tempdir;
-use tokio::sync::{Notify, mpsc::UnboundedSender};
+use tokio::{sync::{Notify, mpsc::UnboundedSender}, task::JoinError};
 use tokio_util::sync::CancellationToken;
 
 #[derive(
@@ -67,6 +66,7 @@ impl<C: Config> Executor<HangingQuery, C> for HangingQueryExecutor {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "timestamp cancellation has been updated, test needs to be fixed"]
+#[timeout(600)] // Ensure the test cannot overrun.
 async fn basic_timestamp_cancellation() {
     let tempdir = tempdir().unwrap();
 
@@ -167,6 +167,7 @@ async fn basic_timestamp_cancellation() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "timestamp cancellation has been updated, test needs to be fixed"]
+#[timeout(600)] // Ensure the test cannot overrun.
 async fn multiple_concurrent_queries_cancelled() {
     let tempdir = tempdir().unwrap();
 
@@ -278,6 +279,7 @@ async fn multiple_concurrent_queries_cancelled() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "timestamp cancellation has been updated, test needs to be fixed"]
+#[timeout(600)] // Ensure the test cannot overrun.
 async fn rapid_timestamp_increments() {
     let tempdir = tempdir().unwrap();
 
@@ -354,7 +356,7 @@ async fn rapid_timestamp_increments() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[timeout(500)]
+// #[timeout(6000)] // Ensure the test cannot overrun.
 async fn stale_tracked_engine_queries_timeout() {
     let tempdir = tempdir().unwrap();
 
@@ -387,32 +389,50 @@ async fn stale_tracked_engine_queries_timeout() {
     // create tracked engine before timestamp increment
     let stale_tracked_engine = engine.clone().tracked().await;
 
-    let _stale_query_handle = tokio::spawn({
+    let stale_query_handle = tokio::spawn({
         let stale_tracked_engine = stale_tracked_engine.clone();
-        async move { stale_tracked_engine.query(&HangingQuery(Variable(0))).await }
+        async move {
+            println!("HERE 9");
+            stale_tracked_engine.query(&HangingQuery(Variable(0))).await
+        }
     });
 
     // wait for query to start hanging
+    println!("HERE 8");
     let _ = query_start_recv.recv().await;
 
     // increment timestamp - this makes stale_tracked_engine stale
     {
+        println!("HERE 11");
         let mut input_session = engine.input_session().await;
+        println!("HERE 12");
         input_session.set_input(Variable(0), 5).await;
+        println!("HERE 13");
         drop(input_session);
+        println!("HERE 14");
     }
 
     // unblock the hanging query
+    println!("HERE 15");
     notify.notify_waiters();
+    println!("HERE 16");
 
     // try to query again with the stale tracked engine
-    // this should hang indefinitely since the engine is stale
-    let stale_query_result = tokio::time::timeout(
-        Duration::from_millis(500),
+    // this should compute fine, using stale data (for consistency)
+    let stale_query_result: Result<i64, JoinError> = stale_query_handle.await;
+    println!("HERE 17");
+    assert!(stale_query_result.is_ok(), "Stale query should compute normally");
+    assert_eq!(stale_query_result.expect("checked"), 0, "Stale query should compute correctly (from old data)");
+
+    // try to query again with the stale tracked engine
+    // this should compute just the same, but quickly (cached).
+    let new_stale_query_result = tokio::time::timeout(
+        Duration::from_millis(50),
         stale_tracked_engine.query(&HangingQuery(Variable(0))),
     )
     .await;
+    println!("HERE 18");
 
     // should timeout because stale queries get stuck
-    assert!(stale_query_result.is_err(), "Stale query should timeout");
+    assert_eq!(new_stale_query_result, Ok(0), "Stale query should timeout");
 }

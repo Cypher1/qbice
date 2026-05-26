@@ -52,7 +52,7 @@ pub struct ActiveComputationGuard(
 
 #[derive(Debug)]
 pub struct ActiveInputSessionGuard(
-    #[allow(unused)] Arc<OwnedRwLockWriteGuard<()>>,
+    #[allow(unused)] Option<Arc<OwnedRwLockWriteGuard<()>>>,
 );
 
 impl<C: Config> Writer<C> {
@@ -141,6 +141,7 @@ impl<C: Config> Engine<C> {
             .insert((), Timestamp(new_timestamp), &mut write_buffer)
             .await;
 
+        /*
         let guard = self
             .computation_graph
             .database
@@ -149,12 +150,14 @@ impl<C: Config> Engine<C> {
             .clone()
             .write_owned()
             .await;
+        */
         // This is an in-memory lock around transactions, forcing only one transaction at a time.
         // Not all DBs require this, and in fact we don't really want it...
         // We want to error out when there's conflicts and let user code handle it.
         // Sooooo.... what if we remove the guard?
 
-        (write_buffer, ActiveInputSessionGuard(Arc::new(guard)))
+        // (write_buffer, ActiveInputSessionGuard(Some(Arc::new(guard))))
+        (write_buffer, ActiveInputSessionGuard(None))
     }
 
     pub(in crate::engine::computation_graph) fn submit_write_buffer(

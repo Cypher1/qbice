@@ -15,7 +15,7 @@ use crate::{
     engine::computation_graph::{
         QueryKind,
         database::{Database, Edge},
-        dirty_worker::task::{Batch, DirtyTask, StrippedBuffer},
+        dirty_worker::task::{Batch, DirtyTask, StripedBuffer},
         statistic::Statistic,
     },
     query::QueryID,
@@ -293,7 +293,7 @@ impl<C: Config> Engine<C> {
         trasnaction: WriteTransaction<C>,
     ) -> WriteTransaction<C> {
         let write_tx = Arc::new(Mutex::new(trasnaction));
-        let stripped_buffer = Arc::new(StrippedBuffer::new());
+        let stripped_buffer = Arc::new(StripedBuffer::new());
 
         let batch = Batch::new(write_tx.clone(), stripped_buffer.clone());
         let notified = batch.notified_owned();
